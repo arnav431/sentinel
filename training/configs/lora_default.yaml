@@ -1,0 +1,28 @@
+# Default QLoRA config for Sentinel Intelligence fine-tuning.
+# Override any field; unspecified fields fall back to LoraTrainConfig's
+# dataclass defaults in train_lora.py.
+base_model: "Qwen/Qwen2.5-3B-Instruct"
+train_file: "data/training/splits/train.jsonl"
+val_file: "data/training/splits/val.jsonl"
+output_dir: "training/runs/lora-qwen2.5-3b"
+seed: 1337
+
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+load_in_4bit: true
+bnb_4bit_quant_type: "nf4"
+bnb_4bit_compute_dtype: "bfloat16"
+
+max_seq_length: 2048
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 16
+num_train_epochs: 3
+learning_rate: 0.0002
+warmup_ratio: 0.03
+logging_steps: 5
+save_steps: 50
+eval_steps: 50
+gradient_checkpointing: true

@@ -1,0 +1,17 @@
+# Optional — install only on the machine that actually runs training/
+# export. Intentionally kept separate from the main runtime
+# requirements.txt: training must not bloat or destabilize sentinel -a's
+# normal runtime dependencies.
+#
+# Not installed, pinned-but-unverified in this repository's authoring
+# sandbox (no GPU, no network path to PyPI's full index / Hugging Face
+# Hub from that environment) — see training/README.md.
+
+torch>=2.3.0
+transformers>=4.43.0
+peft>=0.12.0
+bitsandbytes>=0.43.0
+datasets>=2.20.0
+accelerate>=0.33.0
+pyyaml>=6.0
+psutil>=5.9.0  # optional: enables peak_rss_mb in evaluate_model.py
