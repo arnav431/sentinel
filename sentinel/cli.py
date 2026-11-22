@@ -1,7 +1,7 @@
 """Sentinel CLI.
 
 Implements the exact primary commands from the spec:
-  sentinel -c | -t | -scope | -a <target> | -s | -f | -r | -resume <id>
+  sentinel -c | -t | -a <target> | -s | -f | -r | -resume <id>
 
 Typer's `-x` short-flag style is emulated with explicit `--c/-c` style
 boolean/callback options on a single-command app, since Typer/Click
@@ -159,58 +159,6 @@ def tools_cmd():
 
 
 # --------------------------------------------------------------------------
-# sentinel -scope   Scope management
-# --------------------------------------------------------------------------
-scope_app = typer.Typer(help="Manage authorized target scope.")
-app.add_typer(scope_app, name="scope")
-
-
-@scope_app.command("list")
-def scope_list():
-    _, _, _, scope = _context()
-    entries = scope.list()
-    table = Table(title="Authorized Scope")
-    table.add_column("Scope ID")
-    table.add_column("Target")
-    table.add_column("Label")
-    table.add_column("Added")
-    for e in entries:
-        table.add_row(e.scope_id, e.target, e.label, e.added_at.isoformat())
-    console.print(table)
-
-
-@scope_app.command("add")
-def scope_add(
-    target: str = typer.Argument(..., help="Host, IP, or CIDR you are authorized to test."),
-    label: str = typer.Option("", "--label", help="Friendly label, e.g. the HTB machine name."),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the interactive confirmation prompt."),
-):
-    _, _, _, scope = _context()
-    if not yes:
-        confirmed = typer.confirm(
-            f"I confirm I am authorized to perform security testing against '{target}' "
-            f"(e.g. an owned HTB lab or a machine I own/operate)."
-        )
-    else:
-        confirmed = True
-    try:
-        entry = scope.add(target, label=label, confirmed=confirmed)
-    except ScopeError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(code=1)
-    console.print(f"[green]Added to scope:[/green] {entry.target} ({entry.scope_id})")
-
-
-@scope_app.command("remove")
-def scope_remove(scope_id: str = typer.Argument(...)):
-    _, _, _, scope = _context()
-    if scope.remove(scope_id):
-        console.print(f"[green]Removed scope entry {scope_id}[/green]")
-    else:
-        console.print(f"[yellow]No such scope entry: {scope_id}[/yellow]")
-
-
-# --------------------------------------------------------------------------
 # sentinel -a <target>   Start assessment
 # --------------------------------------------------------------------------
 @app.command("assess", help="Start an assessment by IP; confirm authorization when prompted.")
@@ -224,15 +172,14 @@ def assess_cmd(
     rounds: int = typer.Option(1, "--rounds", help="How many plan/execute iterations to run now."),
 ):
     settings, store, registry, scope = _context()
-    in_scope = scope.check(target)
-    if not in_scope.allowed:
-        confirmed = typer.confirm(
-            f"I confirm I am authorized to perform security testing against '{target}' "
-            "(for example, my own machine or an HTB lab)."
-        )
-        if not confirmed:
-            console.print("[yellow]Assessment cancelled; target was not added to scope.[/yellow]")
-            raise typer.Exit(code=1)
+    confirmed = typer.confirm(
+        f"I confirm I am authorized to perform security testing against '{target}' "
+        "(for example, my own machine or an HTB lab)."
+    )
+    if not confirmed:
+        console.print("[yellow]Assessment cancelled.[/yellow]")
+        raise typer.Exit(code=1)
+    if not scope.check(target).allowed:
         try:
             scope.add(target, confirmed=True)
         except ScopeError as exc:
@@ -404,14 +351,13 @@ def resume_cmd(
 
 # --------------------------------------------------------------------------
 # Compatibility shim for the exact requested flag-style syntax:
-#   sentinel -c | -t | -scope | -a <target> | -s | -f | -r | -resume <id>
+#   sentinel -c | -t | -a <target> | -s | -f | -r | -resume <id>
 # Typer/Click model subcommands as words; this rewrites argv before Click
 # ever sees it so both styles work: `sentinel -c` and `sentinel chat`.
 # --------------------------------------------------------------------------
 _FLAG_TO_COMMAND = {
     "-c": "chat",
     "-t": "tools",
-    "-scope": "scope",
     "-a": "assess",
     "-s": "status",
     "-f": "findings",

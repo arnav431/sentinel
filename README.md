@@ -49,7 +49,7 @@ sentinel knowledge search "nmap service detection"
 sentinel -a 10.10.10.5
 ```
 
-Starting an assessment asks you to confirm authorization for a new target, then saves it to scope automatically. You do not need to add the IP separately. Use `sentinel -c` to ask beginner-friendly questions about SQL, Bash, TShark syntax, and lab workflows; chat explains commands but does not execute arbitrary shell scripts. TShark itself must be installed locally to analyze packet captures outside chat.
+Starting an assessment asks you to confirm authorization, then saves a new target to scope automatically. You do not need a separate scope command. Use `sentinel -c` to ask beginner-friendly questions about SQL, Bash, TShark syntax, and lab workflows; chat explains commands but does not execute arbitrary shell scripts. TShark itself must be installed locally to analyze packet captures outside chat.
 
 Sentinel stores searchable chunks in a local SQLite database under `data/` and retrieves relevant excerpts for model prompts. This is RAG, not model fine-tuning; the OpenRouter model weights remain unchanged. Retrieved excerpts are sent to OpenRouter with the prompt, so do not index private or confidential materials. Supported formats are text, Markdown, RST, and text-based PDFs; scanned PDFs need OCR first.
 
@@ -62,16 +62,14 @@ Sentinel stores searchable chunks in a local SQLite database under `data/` and r
 | `sentinel knowledge search <query>` | Search indexed reference excerpts. |
 | `sentinel -c` | Interactive chat with the configured OpenRouter model about the current assessment. Never executes tools from chat. |
 | `sentinel -t` | List registered tools, install status, versions, operations. |
-| `sentinel -scope list / add <target> / remove <scope_id>` | Manage authorized targets. `add` requires explicit confirmation; `sentinel -a <target>` confirms and adds a new target as part of starting the assessment. |
-| `sentinel -a <target>` | Start an assessment; confirms and adds a new target to scope automatically. |
+| `sentinel -a <target>` | Confirm authorization and start an assessment; new targets are saved to scope automatically. |
 | `sentinel -s` | Status of the current/most recent (or `--assessment <id>`) assessment. |
 | `sentinel -f` | List findings with severity, confidence, verification status. |
 | `sentinel -r [--format markdown\|json\|both]` | Generate a report. |
 | `sentinel -resume <assessment_id>` | Resume a saved assessment; revalidates scope and approvals first. |
 
 Both the flag style above and word-style subcommands
-(`sentinel assess 10.10.10.5`, `sentinel scope add ...`) work — the flag
-style is a thin argv rewrite over the same Typer commands.
+(`sentinel assess 10.10.10.5`) work — the flag style is a thin argv rewrite over the same Typer commands.
 
 ## Architecture
 

@@ -91,7 +91,7 @@ class ScopeManager:
         if not result.allowed:
             raise ScopeError(
                 f"Target '{target}' is not in authorized scope. "
-                f"Add it first with 'sentinel -scope add <target>'."
+                f"Start with 'sentinel -a <target>' and confirm authorization."
             )
         entry = self.store.get_scope_entry(result.scope_id)
         assert entry is not None
