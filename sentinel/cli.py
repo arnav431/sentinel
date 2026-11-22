@@ -88,6 +88,40 @@ def _resolve_assessment(store: StateStore, assessment_id: Optional[str]):
     return assessment
 
 
+def _print_assessment_summary(assessment, store: StateStore) -> None:
+    services = store.list_services(assessment.assessment_id)
+    findings = store.list_findings(assessment.assessment_id)
+    hypotheses = store.list_hypotheses(assessment.assessment_id)
+    invocations = store.list_invocations(assessment.assessment_id)
+    failed = [i for i in invocations if i.error or i.timed_out or i.exit_code not in (0, None)]
+
+    console.print("\n[bold]Assessment recap[/bold]")
+    console.print(f"Target: {assessment.target} | Status: {assessment.status} | Steps: {assessment.iteration_count}/{assessment.max_iterations}")
+    if services:
+        console.print(f"[bold]Services observed ({len(services)}):[/bold]")
+        for service in services:
+            product = " ".join(x for x in (service.product, service.version) if x)
+            details = f" — {product}" if product else ""
+            extra = f" ({service.extra_info})" if service.extra_info else ""
+            console.print(f"  {service.port}/{service.protocol} {service.service_name or 'unknown'}{details}{extra}")
+    else:
+        console.print("[yellow]Services observed: none. This does not prove the target has no open ports.[/yellow]")
+
+    console.print(f"Findings: {len(findings)} recorded. Hypotheses to review: {len(hypotheses)}.")
+    if failed:
+        console.print(f"[yellow]Tool steps with errors, nonzero exit, or timeout: {len(failed)}.[/yellow]")
+    else:
+        console.print("Tool steps completed without reported execution errors.")
+
+    if assessment.status == "active":
+        console.print("[bold]Next:[/bold] the assessment is still active; resume it to continue investigating.")
+        console.print(f"  sentinel -resume {assessment.assessment_id}")
+    console.print("Review status/findings or save a report:")
+    console.print(f"  sentinel -s --assessment {assessment.assessment_id}")
+    console.print(f"  sentinel -f --assessment {assessment.assessment_id}")
+    console.print(f"  sentinel -r --assessment {assessment.assessment_id}")
+
+
 # --------------------------------------------------------------------------
 # sentinel -c   Chat
 # --------------------------------------------------------------------------
@@ -227,7 +261,7 @@ def assess_cmd(
             else:
                 console.print(f"  [dim]skipped {action.tool_name}.{action.operation}: {outcome.skipped_reason}[/dim]")
 
-    console.print(f"Use 'sentinel -s' to check status or 'sentinel -r' to generate a report.")
+    _print_assessment_summary(assessment, store)
 
 
 # --------------------------------------------------------------------------
