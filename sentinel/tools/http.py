@@ -86,6 +86,7 @@ class HttpTool(ToolAdapter):
             args_model=FingerprintArgs,
             risk=ActionRisk.SAFE,
             build_argv=lambda a: ["whatweb", "--color=never", "-a", "1", a.url],
+            binary="whatweb",
         ))
         self._op(OperationSpec(
             name="content_discovery",
@@ -97,6 +98,7 @@ class HttpTool(ToolAdapter):
                 ["gobuster", "dir", "-u", a.url, "-w", a.wordlist, "-q", "-t", "20"]
                 + (["-x", a.extensions] if a.extensions else [])
             ),
+            binary="gobuster",
         ))
 
     def is_installed(self) -> bool:

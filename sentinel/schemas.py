@@ -166,6 +166,7 @@ class ProposedAction(BaseModel):
     tool_name: str
     operation: str
     rationale: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
     target_hint: str = ""
     risk: ActionRisk = ActionRisk.SAFE
 
@@ -250,7 +251,8 @@ class StructuredDecision(BaseModel):
             tool_name=tool_name,
             operation=operation,
             rationale=self.rationale,
-            target_hint=str(action.arguments.get("target") or action.arguments.get("host") or action.arguments.get("url") or "") if action else "",
+            arguments=action.arguments if action else {},
+            target_hint=str(action.arguments.get("target") or action.arguments.get("host") or action.arguments.get("url") or action.arguments.get("name") or "") if action else "",
         )
         return PlanStep(
             step_number=step_number,

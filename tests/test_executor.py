@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from unittest.mock import patch
 
 from sentinel.config import Settings
@@ -18,7 +19,7 @@ def _validated_echo_action():
     args = DiscoverArgs(target="127.0.0.1")
     return ValidatedAction(
         tool=tool, operation=op, args=args,
-        argv=["echo", "hello"], risk=ActionRisk.SAFE, needs_approval=False,
+        argv=[sys.executable, "-c", "print('hello')"], risk=ActionRisk.SAFE, needs_approval=False,
     )
 
 
@@ -38,7 +39,7 @@ def test_executor_runs_and_persists_invocation(store: StateStore, tmp_settings: 
 def test_executor_handles_timeout(store: StateStore, tmp_settings: Settings):
     executor = Executor(store, tmp_settings)
     validated = _validated_echo_action()
-    validated.argv = ["sleep", "10"]
+    validated.argv = [sys.executable, "-c", "import time; time.sleep(10)"]
     tmp_settings.tool_timeout_s = 1
     inv = executor.run("assess_timeout", validated)
     assert inv.timed_out is True
@@ -67,7 +68,7 @@ def test_executor_caps_output_size(store: StateStore, tmp_settings: Settings):
     executor = Executor(store, tmp_settings)
     tmp_settings.max_output_bytes = 10
     validated = _validated_echo_action()
-    validated.argv = ["python3", "-c", "print('x' * 1000)"]
+    validated.argv = [sys.executable, "-c", "print('x' * 1000)"]
     inv = executor.run("assess_cap", validated)
     stdout, _ = executor.read_output(inv)
     assert len(stdout) <= 10

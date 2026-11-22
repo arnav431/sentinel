@@ -43,4 +43,5 @@ class SmbTool(ToolAdapter):
             args_model=SmbArgs,
             risk=ActionRisk.SAFE,
             build_argv=lambda a: ["smbclient", "-L", f"//{a.host}/", "-N"],
+            binary="smbclient",
         ))

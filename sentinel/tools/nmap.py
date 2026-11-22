@@ -82,6 +82,25 @@ def parse_nmap_xml(xml_text: str) -> dict[str, Any]:
     return {"hosts": hosts}
 
 
+def parse_nmap_output(stdout: str, _stderr: str, exit_code: int) -> dict[str, Any]:
+    result = parse_nmap_xml(stdout)
+    if exit_code == 0:
+        result["services"] = [
+            {
+                "host": host["address"],
+                "port": port["port"],
+                "protocol": port["protocol"] or "tcp",
+                "service_name": port["service_name"],
+                "product": port["product"],
+                "version": port["version"],
+                "extra_info": port["extra_info"],
+            }
+            for host in result["hosts"] if host["address"]
+            for port in host["ports"] if port["state"] == "open"
+        ]
+    return result
+
+
 class NmapTool(ToolAdapter):
     name = "nmap"
     binary = "nmap"
@@ -93,6 +112,7 @@ class NmapTool(ToolAdapter):
             args_model=DiscoverArgs,
             risk=ActionRisk.SAFE,
             build_argv=lambda a: ["nmap", "-Pn", "-T4", "--top-ports", "1000", "-oX", "-", a.target],
+            parse_output=parse_nmap_output,
         ))
         self._op(OperationSpec(
             name="service_scan",
@@ -104,6 +124,7 @@ class NmapTool(ToolAdapter):
                 + (["-p", a.ports] if a.ports else ["-p-"])
                 + [a.target]
             ),
+            parse_output=parse_nmap_output,
         ))
 
     def version(self) -> str | None:

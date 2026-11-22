@@ -41,7 +41,7 @@ python -m pip install -e .
 
 Install the security tools you want to use, such as nmap, curl, WhatWeb, Gobuster, smbclient, dig, Nuclei, and enum4linux-ng. Ensure their executables are on `PATH`. Set `OPENROUTER_API_KEY` in your shell or copy `.env.example` to `.env` and set it there.
 
-Place authorized manuals, technique guides, personal notes, and licensed books in `knowledge/`, then index them and run Sentinel directly:
+The repository includes a small MIT-licensed starter corpus in `knowledge/curated/` for Linux, Bash, networking, HTTP, and Nmap. Index it once, then add your own authorized manuals, notes, and licensed materials to `knowledge/` and rerun ingestion when they change:
 
 ```bash
 sentinel knowledge ingest
@@ -62,7 +62,7 @@ Sentinel stores searchable chunks in a local SQLite database under `data/` and r
 | `sentinel knowledge search <query>` | Search indexed reference excerpts. |
 | `sentinel -c` | Interactive chat with the configured OpenRouter model about the current assessment. Never executes tools from chat. |
 | `sentinel -t` | List registered tools, install status, versions, operations. |
-| `sentinel -a <target>` | Confirm authorization and start an assessment; new targets are saved to scope automatically. |
+| `sentinel -a <target> [--rounds N]` | Confirm authorization and run up to 3 feedback-driven tool steps by default; new targets are saved to scope automatically. |
 | `sentinel -s` | Status of the current/most recent (or `--assessment <id>`) assessment. |
 | `sentinel -f` | List findings with severity, confidence, verification status. |
 | `sentinel -r [--format markdown\|json\|both]` | Generate a report. |

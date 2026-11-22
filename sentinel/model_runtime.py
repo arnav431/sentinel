@@ -135,14 +135,16 @@ class OpenRouterRuntime(ModelRuntime):
             '{"assessment_id": str, "phase": str, "summary": str, '
             '"steps": [{"step_number": int, "expected_evidence": str, '
             '"proposed_action": {"tool_name": str, "operation": str, '
-            '"rationale": str, "target_hint": str, "risk": "safe"|"intrusive"}}]}'
+            '"rationale": str, "arguments": object, "risk": "safe"|"intrusive"}}]}'
         )
         user = (
             f"Assessment context (JSON): {json.dumps(context)}\n\n"
             f"Registered tools and operations: {json.dumps(context.get('available_operations', []))}\n\n"
-            f"Propose 1-3 next steps as JSON matching exactly this schema: {schema_hint}\n"
-            "Only propose tool_name/operation pairs that appear in the registered tools list. "
-            "Prefer the least intrusive action that would resolve the current unresolved question."
+            f"Propose exactly one next step as JSON matching this schema: {schema_hint}\n"
+            "Only propose a tool_name/operation pair from the registered tools list and fill its "
+            "arguments using that operation's arguments_schema. Use the assessment target (or a URL "
+            "on that target) for all network actions. Prefer the least intrusive useful action; "
+            "the next plan will see this step's results before choosing another tool."
         )
         raw = self._complete(_STRUCTURED_SYSTEM_PREFIX, user, json_mode=True)
         try:
@@ -196,6 +198,8 @@ class OpenRouterRuntime(ModelRuntime):
             "proposed_action.tool must be an exact 'tool_name.operation' pair from the registered "
             "tools list above, or proposed_action must be null if stop_condition is not 'none'. "
             "Do not propose an action you have already run with no new information since. "
+            "Use exactly the argument names and types in the selected operation's arguments_schema. "
+            "Keep all network targets within the authorized assessment target. "
             "Do not assert exploitability from a banner or scan result alone — only state what "
             "the evidence collected so far actually supports."
         )

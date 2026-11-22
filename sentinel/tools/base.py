@@ -27,6 +27,7 @@ class OperationSpec:
     risk: ActionRisk
     build_argv: Callable[[BaseModel], list[str]]
     parse_output: Callable[[str, str, int], dict[str, Any]] | None = None
+    binary: str | None = None
 
 
 @dataclass
@@ -63,6 +64,9 @@ class ToolAdapter(abc.ABC):
 
     def is_installed(self) -> bool:
         return shutil.which(self.binary) is not None
+
+    def is_operation_installed(self, operation: OperationSpec) -> bool:
+        return shutil.which(operation.binary or self.binary) is not None
 
     def version(self) -> str | None:
         """Override for tools that support a fast --version check.

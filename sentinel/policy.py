@@ -63,9 +63,9 @@ class PolicyEngine:
         except KeyError as exc:
             raise PolicyViolation(str(exc)) from exc
 
-        if not tool.is_installed():
+        if not tool.is_operation_installed(op):
             raise PolicyViolation(
-                f"Tool '{tool.name}' is not installed or not on PATH. "
+                f"Binary '{op.binary or tool.binary}' for '{tool.name}.{op.name}' is not installed or not on PATH. "
                 f"Run 'sentinel -t' to check tool status."
             )
 

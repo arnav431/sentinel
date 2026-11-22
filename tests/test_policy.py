@@ -54,7 +54,8 @@ def test_accepts_valid_safe_action(policy: PolicyEngine, in_scope_assessment: As
     assert validated.argv[0] == "nmap"
 
 
-def test_intrusive_action_requires_approval(policy: PolicyEngine, in_scope_assessment: Assessment):
+def test_intrusive_action_requires_approval(policy: PolicyEngine, in_scope_assessment: Assessment, monkeypatch):
+    monkeypatch.setattr(policy.registry.get("http"), "is_operation_installed", lambda _op: True)
     proposed = ProposedAction(tool_name="http", operation="content_discovery", rationale="test")
     validated = policy.validate_action(
         in_scope_assessment, proposed, {"url": "http://10.10.10.5/"}
@@ -62,7 +63,8 @@ def test_intrusive_action_requires_approval(policy: PolicyEngine, in_scope_asses
     assert validated.needs_approval is True
 
 
-def test_model_cannot_downgrade_risk(policy: PolicyEngine, in_scope_assessment: Assessment):
+def test_model_cannot_downgrade_risk(policy: PolicyEngine, in_scope_assessment: Assessment, monkeypatch):
+    monkeypatch.setattr(policy.registry.get("http"), "is_operation_installed", lambda _op: True)
     # content_discovery is INTRUSIVE at the operation level; even if the model
     # labels its proposal "safe", the operation's own risk still governs.
     proposed = ProposedAction(

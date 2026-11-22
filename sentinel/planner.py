@@ -23,14 +23,20 @@ def build_context(assessment: Assessment, store: StateStore, registry: ToolRegis
 
     available_operations = []
     for tool in registry.all():
-        if not tool.is_installed():
-            continue
         for op in tool.operations().values():
+            if not tool.is_operation_installed(op):
+                continue
+            schema = op.args_model.model_json_schema()
             available_operations.append({
                 "tool_name": tool.name,
                 "operation": op.name,
                 "description": op.description,
                 "risk": op.risk.value,
+                "arguments_schema": {
+                    "type": "object",
+                    "properties": schema.get("properties", {}),
+                    "required": schema.get("required", []),
+                },
             })
 
     return {

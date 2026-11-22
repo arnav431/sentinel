@@ -9,3 +9,7 @@ data/evidence/
 data/reports/
 knowledge/*
 !knowledge/.gitkeep
+!knowledge/curated/
+knowledge/curated/*
+!knowledge/curated/htb-soc-analyst-prerequisites/
+!knowledge/curated/htb-soc-analyst-prerequisites/**

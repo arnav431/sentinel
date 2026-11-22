@@ -149,7 +149,10 @@ def tools_cmd():
             "[green]yes[/green]" if status.installed else "[red]no[/red]",
             status.version or "-",
             "[green]yes[/green]" if status.tested_ok else "[yellow]untested[/yellow]",
-            ", ".join(status.operations),
+            ", ".join(
+                f"{name} ({'yes' if tool.is_operation_installed(op) else 'no'})"
+                for name, op in tool.operations().items()
+            ),
         )
     console.print(table)
     console.print(
@@ -169,7 +172,7 @@ def assess_cmd(
         False, "--auto-approve",
         help="Automatically approve intrusive actions (NOT recommended; use for scripted lab runs only).",
     ),
-    rounds: int = typer.Option(1, "--rounds", help="How many plan/execute iterations to run now."),
+    rounds: int = typer.Option(3, "--rounds", help="How many feedback-driven tool steps to run (default: 3)."),
 ):
     settings, store, registry, scope = _context()
     confirmed = typer.confirm(

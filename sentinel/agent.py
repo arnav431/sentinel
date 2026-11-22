@@ -19,7 +19,7 @@ from sentinel.findings import apply_interpretation
 from sentinel.model_runtime import ModelRuntime, ModelRuntimeError
 from sentinel.planner import build_context, next_plan
 from sentinel.policy import PolicyEngine, PolicyViolation
-from sentinel.schemas import Assessment, AssessmentPhase, PlanStep
+from sentinel.schemas import Assessment, AssessmentPhase, PlanStep, Service
 from sentinel.scope import ScopeManager
 from sentinel.state_store import StateStore
 from sentinel.tools.base import ToolRegistry
@@ -102,7 +102,7 @@ class Agent:
         proposed = step.proposed_action
         try:
             validated = self.policy.validate_action(
-                assessment, proposed, {"target": proposed.target_hint} | self._guess_args(proposed)
+                assessment, proposed, self._action_args(proposed)
             )
         except PolicyViolation as exc:
             self.console.print(f"[yellow]Skipped step {step.step_number}:[/yellow] {exc}")
@@ -122,7 +122,14 @@ class Agent:
         inv = self.executor.run(assessment.assessment_id, validated)
 
         if inv.exit_code == 0 and not inv.timed_out and not inv.error:
-            stdout, _stderr = self.executor.read_output(inv)
+            stdout, stderr = self.executor.read_output(inv)
+            if validated.operation.parse_output:
+                try:
+                    parsed = validated.operation.parse_output(stdout, stderr, inv.exit_code)
+                    for service in parsed.get("services", []):
+                        self.store.upsert_service(assessment.assessment_id, Service(**service))
+                except Exception as exc:
+                    self.console.print(f"[yellow]Could not parse tool output:[/yellow] {exc}")
             try:
                 interpretation = self.model.interpret_result({
                     "tool": validated.tool.name,
@@ -140,13 +147,15 @@ class Agent:
             exit_code=inv.exit_code, timed_out=inv.timed_out,
         )
 
-    @staticmethod
-    def _guess_args(proposed) -> dict:
-        """Best-effort extraction of extra args beyond target_hint for simple
-        operations. The policy engine's Pydantic validation is the real
-        safety net; this just keeps common single-arg operations usable
-        without a bespoke mapping table per operation."""
-        return {}
+    def _action_args(self, proposed) -> dict:
+        args = dict(proposed.arguments)
+        if proposed.target_hint and not any(key in args for key in ("target", "host", "url", "name")):
+            tool = self.registry.get(proposed.tool_name)
+            operation = tool.get_operation(proposed.operation) if tool else None
+            fields = operation.args_model.model_fields if operation else {}
+            target_field = next((key for key in ("target", "host", "url", "name") if key in fields), "target")
+            args[target_field] = proposed.target_hint
+        return args
 
     def resume_assessment(self, assessment_id: str) -> Assessment:
         assessment = self.store.get_assessment(assessment_id)
