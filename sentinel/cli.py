@@ -91,7 +91,7 @@ def _resolve_assessment(store: StateStore, assessment_id: Optional[str]):
 # --------------------------------------------------------------------------
 # sentinel -c   Chat
 # --------------------------------------------------------------------------
-@app.command("chat", help="Start an interactive chat with the configured model about the current assessment.")
+@app.command("chat", help="Ask the model about findings, lab concepts, SQL, Bash, or basic Kali tools.")
 def chat_cmd(
     assessment_id: Optional[str] = typer.Option(None, "--assessment", "-id", help="Assessment to discuss."),
 ):
@@ -104,8 +104,9 @@ def chat_cmd(
 
     assessment = store.latest_assessment() if assessment_id is None else store.get_assessment(assessment_id)
     history: list[dict[str, str]] = []
-    console.print("[bold]Sentinel chat.[/bold] Type 'exit' to quit. I can discuss findings and explain "
-                  "reasoning, but I won't execute tools from this chat — use 'sentinel -a' to run an assessment.")
+    console.print("[bold]Sentinel chat.[/bold] Type 'exit' to quit. Ask about findings, lab concepts, "
+                  "SQL, Bash, or basic Kali tools. Chat explains commands but does not execute them; "
+                  "use 'sentinel -a <IP>' to start an assessment.")
     while True:
         try:
             user_input = typer.prompt(">")
@@ -212,9 +213,9 @@ def scope_remove(scope_id: str = typer.Argument(...)):
 # --------------------------------------------------------------------------
 # sentinel -a <target>   Start assessment
 # --------------------------------------------------------------------------
-@app.command("assess", help="Start a new assessment against an authorized target.")
+@app.command("assess", help="Start an assessment by IP; confirm authorization when prompted.")
 def assess_cmd(
-    target: str = typer.Argument(..., help="Authorized target to assess."),
+    target: str = typer.Argument(..., help="Lab machine IP or authorized hostname."),
     iterations: Optional[int] = typer.Option(None, "--max-iterations", help="Override the default iteration budget."),
     auto_approve: bool = typer.Option(
         False, "--auto-approve",
@@ -223,6 +224,21 @@ def assess_cmd(
     rounds: int = typer.Option(1, "--rounds", help="How many plan/execute iterations to run now."),
 ):
     settings, store, registry, scope = _context()
+    in_scope = scope.check(target)
+    if not in_scope.allowed:
+        confirmed = typer.confirm(
+            f"I confirm I am authorized to perform security testing against '{target}' "
+            "(for example, my own machine or an HTB lab)."
+        )
+        if not confirmed:
+            console.print("[yellow]Assessment cancelled; target was not added to scope.[/yellow]")
+            raise typer.Exit(code=1)
+        try:
+            scope.add(target, confirmed=True)
+        except ScopeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1)
+
     try:
         model = get_model_runtime(settings)
     except Exception as exc:
