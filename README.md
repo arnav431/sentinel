@@ -4,8 +4,10 @@ A terminal-based, agentic penetration-testing assistant for **authorized**
 beginner-level Hack The Box labs and vulnerable VMs. It uses
 [OpenRouter](https://openrouter.ai) to access a hosted LLM that plans each
 step, a deterministic policy engine decides what's actually allowed to
-run, and a fixed set of tool adapters (nmap, curl/WhatWeb/Gobuster,
-smbclient/enum4linux-ng, dig, nuclei, ZAP) do the real work.
+run, and a fixed set of tool adapters (Nmap, HTTP, SMB, FTP, SSH, DNS,
+Nuclei, and OWASP ZAP) do the real work. Each adapter exposes a limited
+set of validated operations; see `sentinel -t` for registered tools and
+their local install status.
 
 Sentinel is **not** a chatbot that prints commands for you to copy. It
 executes real tools against real targets you've explicitly put in
@@ -39,9 +41,13 @@ python -m venv .venv
 python -m pip install -e .
 ```
 
-Install the security tools you want to use, such as nmap, curl, WhatWeb, Gobuster, smbclient, dig, Nuclei, and enum4linux-ng. Ensure their executables are on `PATH`. Set `OPENROUTER_API_KEY` in your shell or copy `.env.example` to `.env` and set it there.
+Install the security tools you want to use, such as Nmap, curl, smbclient, an FTP client, an SSH client, dig, Nuclei, and OWASP ZAP. Ensure the required executables are on `PATH`. Set `OPENROUTER_API_KEY` in your shell or copy `.env.example` to `.env` and set it there.
 
-The repository includes a small MIT-licensed starter corpus in `knowledge/curated/` for Linux, Bash, networking, HTTP, and Nmap. Index it once, then add your own authorized manuals, notes, and licensed materials to `knowledge/` and rerun ingestion when they change:
+The repository includes HTB SOC Analyst prerequisites material under
+`knowledge/curated/htb-soc-analyst-prerequisites/` (see its README and
+LICENSE for source and licensing details). Index it, then add other
+authorized references under `knowledge/` and rerun ingestion when they
+change:
 
 ```bash
 sentinel knowledge ingest
@@ -51,7 +57,7 @@ sentinel -a 10.10.10.5
 
 Starting an assessment asks you to confirm authorization, then saves a new target to scope automatically. You do not need a separate scope command. Use `sentinel -c` to ask beginner-friendly questions about SQL, Bash, TShark syntax, and lab workflows; chat explains commands but does not execute arbitrary shell scripts. TShark itself must be installed locally to analyze packet captures outside chat.
 
-Sentinel stores searchable chunks in a local SQLite database under `data/` and retrieves relevant excerpts for model prompts. This is RAG, not model fine-tuning; the OpenRouter model weights remain unchanged. Retrieved excerpts are sent to OpenRouter with the prompt, so do not index private or confidential materials. Supported formats are text, Markdown, RST, and text-based PDFs; scanned PDFs need OCR first.
+Sentinel stores searchable chunks in a local SQLite database under `data/` and retrieves relevant excerpts for model prompts. This is retrieval-augmented generation (RAG), not model fine-tuning; the OpenRouter model weights remain unchanged. Retrieved excerpts are sent to OpenRouter with the prompt, so do not index private or confidential materials. Supported formats are text, Markdown, RST, and text-based PDFs; scanned PDFs need OCR first.
 
 
 ## CLI reference
@@ -62,19 +68,21 @@ Sentinel stores searchable chunks in a local SQLite database under `data/` and r
 | `sentinel knowledge search <query>` | Search indexed reference excerpts. |
 | `sentinel -c` | Interactive chat with the configured OpenRouter model about the current assessment. Never executes tools from chat. |
 | `sentinel -t` | List registered tools, install status, versions, operations. |
-| `sentinel -a <target> [--rounds N]` | Confirm authorization and run up to 3 feedback-driven tool steps by default; new targets are saved to scope automatically. |
+| `sentinel -a <target> [--rounds N] [--max-iterations N]` | Confirm authorization and run up to 3 feedback-driven tool steps by default; new targets are saved to scope automatically. |
 | `sentinel -s` | Status of the current/most recent (or `--assessment <id>`) assessment. |
 | `sentinel -f` | List findings with severity, confidence, verification status. |
 | `sentinel -r [--format markdown\|json\|both]` | Generate a report. |
 | `sentinel -resume <assessment_id>` | Resume a saved assessment; revalidates scope and approvals first. |
 
-Both the flag style above and word-style subcommands
-(`sentinel assess 10.10.10.5`) work — the flag style is a thin argv rewrite over the same Typer commands.
+Both the flag style above and word-style commands work: `sentinel assess
+10.10.10.5`, `sentinel chat`, `sentinel tools`, `sentinel status`,
+`sentinel findings`, `sentinel report`, and `sentinel resume <id>`.
 
 ## Architecture
 
 ```
-cli.py        → command surface (the 8 required commands)
+cli.py        → command surface (assessment, chat, tools, status, findings,
+                 reports, resume, and knowledge commands)
 agent.py      → the plan → validate → approve → execute → interpret → persist loop
 planner.py    → builds model context, turns Plan into actions
 model_runtime.py → OpenRouter abstraction (chat/create_plan/interpret_result/summarize_findings)
@@ -99,19 +107,17 @@ real tool registry and re-validated against that operation's Pydantic
 schema in `policy.py` before `executor.py` ever sees it — the model's
 raw text is never interpolated into a command line.
 
-**Why a fine-tuned model drops in without touching the rest of the
-app.** Everything talks to the `ModelRuntime` interface
-(`chat/create_plan/interpret_result/summarize_findings`), never to
-OpenRouter's HTTP API directly. Set `OPENROUTER_MODEL` to another model, or
-swap `get_model_runtime()`'s return value for a different
-`ModelRuntime` implementation — nothing in `agent.py`, `planner.py`, or
-`cli.py` changes.
+Model calls go through the `ModelRuntime` interface
+(`chat/create_plan/interpret_result/summarize_findings`), keeping provider
+details out of the agent and CLI. The current configuration uses
+OpenRouter; see `.env.example` for supported settings.
 
 ## Known limitations / untested behavior
 
-- OWASP ZAP (`zap-baseline.py`), Nuclei, and enum4linux-ng must be
-  installed separately if you want to use those adapters; their binaries
-  need to be available on `PATH`.
+- OWASP ZAP (`zap-baseline.py`) and Nuclei must be installed separately
+  if you want to use those adapters; their binaries need to be available
+  on `PATH`. The same applies to binaries used by the other registered
+  adapters.
 - The planner's model calls require a valid OpenRouter API key and an
   available configured model; without them, `sentinel -a` records scope/state
   but reports a model error on each iteration.
@@ -123,25 +129,23 @@ swap `get_model_runtime()`'s return value for a different
   (`findings.apply_interpretation`, `Hypothesis`/`Finding` schemas) are
   there for an adapter to be added.
 
-## Part 2: fine-tuning extension
+## Training experiments
 
-`training/` adds a dataset pipeline, LoRA/QLoRA fine-tuning, a benchmark
-harness, and an export path to Ollama for a fine-tuned "Sentinel
-Intelligence" model — built on top of the `StructuredDecision` schema
-and `ModelRuntime.decide()` now in this repo. See **`training/README.md`**
-for the full writeup, including exactly what has and hasn't been
-verified end-to-end, and the hardware arithmetic for fine-tuning on a
-16 GB RAM / 4 GB VRAM laptop.
+`training/` contains an experimental synthetic dataset pipeline,
+fine-tuning scripts, evaluation harness, and Ollama export helpers. The
+training README documents what has and has not been verified. This work
+is separate from the current assessment runtime; do not assume the
+fine-tuned model is used by the CLI.
 
 ## Tests
 
 ```bash
-pip install -e . --break-system-packages
-pip install pytest pytest-mock
+python -m pip install -e .
+python -m pip install pytest pytest-mock
 pytest -q
 ```
 
-72 unit/integration tests cover: scope validation (including rejection
+The repository includes tests covering scope validation (including rejection
 of malicious/invalid targets), policy enforcement (unknown tools,
 unknown operations, out-of-scope targets, invalid arguments, approval
 gating, the model-cannot-downgrade-risk rule, iteration budget), tool
@@ -154,5 +158,5 @@ never produce a tool invocation, the `StructuredDecision` schema and its
 adapters onto Part 1's `Plan`/`ModelInterpretation` shapes, the training
 dataset pipeline (synthetic-only enforcement, schema validation,
 scenario-leakage-safe splitting, registered-tool cross-checking, secret
-scanning), and the benchmark-scoring logic in `evaluate_model.py`
-against deterministic stub models.
+scanning), and benchmark scoring against deterministic stub models. Run
+`pytest -q` to see the current result in your environment.
